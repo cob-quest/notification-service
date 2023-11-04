@@ -1,0 +1,110 @@
+stages:
+  - Test
+  - Release
+  - Update Chart
+
+##############################################################################
+##                              Variables                                   ##
+##############################################################################
+variables:
+  # AWS_WEB_IDENTITY_TOKEN_FILE: /tmp/web-identity-token
+  CD_CHART_REPO: notification-charts
+  CD_GIT_REPOSITORY: git@gitlab.com:cs302-2023/g3-team8/project/k8s/notification-charts.git
+  CD_MANIFEST_FILE: values.yaml
+  APP_NAME: gitops-argocd-deploy
+  CHART_FOLDER: helm
+
+##############################################################################
+##                Setup and Enable SSH                                      ##
+##############################################################################
+.enable_ssh: &enable_ssh |-
+  apk add --no-cache git
+  mkdir -p /root/.ssh
+  echo "$SSH_PRIVATE_KEY" > /root/.ssh/id_rsa
+  ssh-keyscan -H gitlab.com > /root/.ssh/known_hosts
+  chmod 600 /root/.ssh/id_rsa
+
+# flake8:
+#   stage: Test
+#   image: python:3.11-slim
+#   before_script:
+#     - python -V
+#     - python -m pip install flake8
+#   script:
+#     - flake8 src --exit-zero | tee flake8_report.txt
+#   artifacts:
+#     when: always
+#     paths:
+#       - flake8_report.txt
+
+# pylint:
+#   stage: Test
+#   image: python:3.11-slim
+#   before_script:
+#     - python -V
+#     - python -m pip install -r requirements.txt
+#     - python -m pip install pylint
+#   script:
+#     - pylint --fail-under=3 src | tee pylint_report.txt
+#   artifacts:
+#     when: always
+#     paths:
+#       - pylint_report.txt
+
+# pytest:
+#   stage: Test
+#   image: python:3.11-slim
+#   before_script:
+#     - python -V
+#     - python -m pip install -r requirements.txt
+#     - python -m pip install -r requirements.test.txt
+#     - apt-get update && apt-get install -y tree  # Install tree utility
+#     - tree  # Display directory structure
+#     - pwd
+#   script:
+#     - pytest --junitxml=test-results.xml -vv
+#   artifacts:
+#     when: on_failure
+#     paths:
+#       - pytest_report.xml
+#   allow_failure: true
+
+release-image:
+  stage: Release
+  image: docker:24.0.2
+  services:
+    - docker:24.0.2-dind
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+  script:
+    - docker build --pull -t "$CI_REGISTRY_IMAGE/$CI_COMMIT_BRANCH:$CI_COMMIT_SHORT_SHA" -f docker/Dockerfile .
+    - docker push "$CI_REGISTRY_IMAGE/$CI_COMMIT_BRANCH:$CI_COMMIT_SHORT_SHA"
+
+update_chart_manifest:
+  stage: Update Chart
+  image: docker:24.0.2
+  services:
+    - docker:24.0.2-dind
+  only:
+    - main
+  needs:
+    - release-image
+  variables:
+    GIT_STRATEGY: none
+  retry: 2
+  before_script:
+    - *enable_ssh
+  script:
+    # Configure Git
+    - git config --global user.name $APP_NAME
+    - git config --global user.email $APP_NAME"@gitlab.com"
+    - git clone --single-branch --branch main $CD_GIT_REPOSITORY
+    - cd $CD_CHART_REPO
+    - cd $CHART_FOLDER
+    # HELM Update
+    - >
+      tag=$(cat values.yaml | grep tag: | awk '{print $2}')
+    - sed -i "s/$tag/$CI_COMMIT_SHORT_SHA/" values.yaml
+    - cat $CD_MANIFEST_FILE
+    - cd ..
+    - git commit -am "🔥 update image tag" && git push origin main
