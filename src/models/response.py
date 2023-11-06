@@ -37,7 +37,7 @@ class Response:
         }
     
     def validate(self):
-        validator = Validator(Notification.schema)
+        validator = Validator(Response.schema)
         if not validator.validate(self.to_dict()):
             return False, validator.errors
         return True, []
