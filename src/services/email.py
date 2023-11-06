@@ -1,9 +1,9 @@
 import requests
-import os
-from dotenv import load_dotenv
+import sys
 
-load_dotenv()
-api_key = os.getenv("SMTP_API_KEY")
+sys.path.append('/app/src/services')
+
+from config.env import SMTP_API_KEY
 
 url = "https://api.smtp2go.com/v3/email/send"
 headers = {"Content-Type": "application/json"}
@@ -19,12 +19,12 @@ with open("file.csv","r") as csv_file:
 
         message = f"Hello {user}, your password is {password}, secret key is {secret_key}, access key is {access_key}"
         # print(message)
-        receiver_arr = ["Test Person <ojh809@gmail.com>"]
+        receiver_arr = ["Participant <ojh809@gmail.com>"]
         data = {}
-        data["api_key"] = api_key
+        data["api_key"] = SMTP_API_KEY
         data["to"] = receiver_arr
-        data["sender"] = "Test Persons Friend <gabriel.ong.2021@scis.smu.edu.sg>"
-        data["subject"] = "Hello World"
+        data["sender"] = "Team Cobbers <gabriel.ong.2021@scis.smu.edu.sg>"
+        data["subject"] = "Assessment Details"
         data["text_body"] = message
         
         response = requests.post(url, json=data, headers=headers)
