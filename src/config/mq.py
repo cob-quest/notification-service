@@ -12,42 +12,46 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-logging.info(
-    f"Connecting to RabbitMQ at {AMQP_HOSTNAME}:5672 with user {AMQP_USERNAME} and password {AMQP_PASSWORD}..."
-)
+def init():
+    channel = create_channel()
+    
+    # Create an AMQP topic exchange for Notifications
 
-credentials = pika.PlainCredentials(username=AMQP_USERNAME, password=AMQP_PASSWORD)
-parameters = pika.ConnectionParameters(
-    host=AMQP_HOSTNAME, port=5672, credentials=credentials
-)
-connected = False
-start_time = time.time()
+    exchange_name = "topic.notification"
+    exchange_type = "topic"
+    channel.exchange_declare(
+        exchange=exchange_name, exchange_type=exchange_type, durable=True
+    )
 
-logging.info("Connecting...")
+    # Create a queue for Notifications
 
-while not connected:
-    try:
-        connection = pika.BlockingConnection(parameters)
-        connected = True
-    except pika.exceptions.AMQPConnectionError:
-        if time.time() - start_time > 20:
-            exit(1)
+    queue_name = "queue.notification.toService"
+    channel.queue_declare(queue=queue_name, durable=True)
+    channel.queue_bind(
+        exchange=exchange_name, queue=queue_name, routing_key="notification.toService.*"
+    )
 
-logging.info("CONNECTED!")
+def create_channel():
 
-# Create an AMQP topic exchange for Notifications
+    logging.info(
+        f"Connecting to RabbitMQ at {AMQP_HOSTNAME}:5672 with user {AMQP_USERNAME} and password {AMQP_PASSWORD}..."
+    )
 
-channel = connection.channel()
-exchange_name = "topic.notification"
-exchange_type = "topic"
-channel.exchange_declare(
-    exchange=exchange_name, exchange_type=exchange_type, durable=True
-)
+    credentials = pika.PlainCredentials(username=AMQP_USERNAME, password=AMQP_PASSWORD)
+    parameters = pika.ConnectionParameters(
+        host=AMQP_HOSTNAME, port=5672, credentials=credentials
+    )
+    # Create a connection and channel
+    retry_timer = 2
+    while True:
+        try:
+            connection = pika.BlockingConnection(parameters)
+            logging.info("Connected to Rabbit MQ SUCCESS!")
+            break
+        except Exception as e:
+            logging.info(
+                f"Connecting to RabbitMQ Failed: {e}... Retrying in {retry_timer} seconds")
+            time.sleep(retry_timer)
+            retry_timer += 2
 
-# Create a queue for Notifications
-
-queue_name = "queue.notification.toService"
-channel.queue_declare(queue=queue_name, durable=True)
-channel.queue_bind(
-    exchange=exchange_name, queue=queue_name, routing_key="notification.toService.*"
-)
+    return connection.channel()

@@ -1,10 +1,13 @@
 import logging
 import sys
 import json
+import time
+
+import pika
 
 sys.path.append('/app/src')
 
-from config.mq import channel
+from config.mq import create_channel, init
 from db import get_collection
 from services.queue import process_participants
 
@@ -32,10 +35,23 @@ def callback(channel, method, properties, body):
     except Exception as e:
         logging.error(f"Failed to process message:{e}")
 
-channel.basic_consume(
-    queue=QUEUE_NAME,
-    on_message_callback=callback,
-    auto_ack=False)
+def consume():
 
-logging.info("Application started!")
-channel.start_consuming()
+    channel = create_channel()
+
+    channel.basic_consume(
+        queue=QUEUE_NAME,
+        on_message_callback=callback,
+        auto_ack=False)
+
+    logging.info("Application started!")
+    channel.start_consuming()
+
+init()
+
+while True:
+    try:
+        consume()
+    except pika.exceptions.AMQPConnectionError as e:
+        logging.error(f"Connection was closed, retrying...: {e}")
+        time.sleep(5)  # Wait for 5 seconds before the next attempt
