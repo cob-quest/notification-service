@@ -53,5 +53,5 @@ def create_channel():
                 f"Connecting to RabbitMQ Failed: {e}... Retrying in {retry_timer} seconds")
             time.sleep(retry_timer)
             retry_timer += 2
-
+            
     return connection.channel()
