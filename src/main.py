@@ -11,7 +11,11 @@ from config.mq import create_channel, init
 from db import get_collection
 from services.queue import process_participants
 
-logging.info("App started!")
+# Configure root logger
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
 QUEUE_NAME = 'queue.notification.toService'
 EXCHANGE_NAME = 'topic.router'
 ROUTING_KEY = 'notification.fromService.emailSent'

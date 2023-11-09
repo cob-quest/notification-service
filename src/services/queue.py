@@ -23,6 +23,7 @@ def process_participants(message_data: object):
         try:
             send_email(attempt)
         except Exception as e:
+            logging.info(f"Send email failed: {e}")
             response["eventStatus"] = "emailSendFailed"
             return response
         
